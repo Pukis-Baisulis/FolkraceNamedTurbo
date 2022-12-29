@@ -10,7 +10,7 @@
 // libraries
 #include <Wire.h>
 #include <VL53L0X.h>
-//#include "MPU9250.h"
+
 
 
 // pinout
@@ -38,8 +38,6 @@
 VL53L0X VLX_1;
 VL53L0X VLX_2;
 VL53L0X VLX_3; 
-//MPU9250 mpu;
-
 
 // constants
 #define START_DELAY 5000
