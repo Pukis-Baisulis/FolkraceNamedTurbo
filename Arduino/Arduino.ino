@@ -26,9 +26,11 @@
 #define DIP_2 19
 #define DIP_3 20
 
+#define PICO_I2C_ADRESS 0x09
+
 
 // operation modes
-#define DEBUGGG 
+
 
 // initialisation things 
 #define SERIAL_BAUD 115200
@@ -48,6 +50,7 @@ VL53L0X VLX_3;
 #define MAX_SPD 255
 #define MIN_SPD 70
 #define AVOID_SPD 180
+#define GYRO_CORRECT_SPD 100
 #define DEFAULT_DRIVE_SPD 150
 
 #define MAX_SENSOR_RANGE 1200
@@ -64,10 +67,8 @@ VL53L0X VLX_3;
 bool dips[6];
 bool vlx[3];
 int distance[3];
-//int gyro[3];//z, x, y
-//int accelg[3];//x, y, z
-//int spds[2];
-int speed; // front speed in m/s
+float speed; // front speed in m/s
+int gyro;
 unsigned long milk_0; // for start delay and measurements 
 unsigned long milk_1; // for acceleration
 bool avoiding = false;
@@ -97,6 +98,8 @@ int position;
 void init_all(); //also reading the bs from dips
 void sensors();
 void drive(int spdA, int spdB);
+void getGyro(int olderG);
+void gyroCorrecter();
 void not_moving();
 
 
@@ -124,18 +127,21 @@ void loop()
   I += P;
   PID = ((double)P*kP) + ((double)I*DEFAULT_KI) + ((double)(P-lastP)*DEFAULT_KD);
   drive(DEFAULT_DRIVE_SPD+PID, DEFAULT_DRIVE_SPD-PID);
+
   if(dips[1])
   {
-    //Serial.println(PID);
+    Serial.println(PID);
   }
   //digitalWrite(LED_BUILTIN, HIGH);
 }
 
 void sensors()
 {
+  
+
   distance[0]=0;
   if(vlx[0])
-    distance[0]=VLX_1.readRangeContinuousMillimeters();//vlx1 left    
+    distance[0]=VLX_1.readRangeSingleMillimeters();//vlx1 left    
     
   if(distance[0] <=MIN_SENSOR_RANGE)
     distance[0]=1;    
@@ -145,7 +151,7 @@ void sensors()
         
   distance[2]=0;
   if(vlx[2])
-    distance[2]=VLX_3.readRangeContinuousMillimeters();// vlx3 right
+    distance[2]=VLX_3.readRangeSingleMillimeters();// vlx3 right
    
   if(distance[2] <=MIN_SENSOR_RANGE)
     distance[2]=1;    
@@ -155,7 +161,7 @@ void sensors()
 
 
   if(vlx[1])
-    distance[1]=VLX_2.readRangeContinuousMillimeters();//vlx2 mid
+    distance[1]=VLX_2.readRangeSingleMillimeters();//vlx2 mid
   else 
     distance[1]=emulate_front();
 
@@ -165,8 +171,9 @@ void sensors()
   if(distance[1] <= AVOID_DIST && !avoiding)
     avoid(); 
   
+  Wire.requestFrom(PICO_I2C_ADRESS, 6);
+  getGyro();
   
-
   if(dips[1])
   {
     //Serial.print("1: ");
@@ -174,8 +181,34 @@ void sensors()
     Serial.print(" ");
     Serial.print(distance[1]);
     Serial.print(" ");
-    Serial.println(distance[2]);
+    Serial.print(distance[2]);
+    Serial.print(" ");
+    Serial.print(speed);
+    Serial.print(" ");
+    Serial.println(gyro);
   }
+}
+
+void getGyro()
+{
+  byte speed1 = Wire.read();
+  byte speed2 = Wire.read();
+  byte gyro1 = Wire.read();
+  byte gyro2 = Wire.read();
+  byte oldGyro1 = Wire.read();
+  byte oldGyro2 = Wire.read();
+  speed = (float)speed1+((float)speed2/256);
+  gyro = (int)gyro1 + (int)gyro2;
+  int oldGyro = (int)oldGyro1 + (int)oldGyro2;
+  if(oldGyro != 0)
+  {
+    gyroCorrecter(oldGyro);
+  }
+}
+
+int emulate_front() // emulates front sensosr if it's not found
+{
+  return 666;
 }
 
 void drive(int spdA, int spdB)
@@ -196,7 +229,7 @@ void drive(int spdA, int spdB)
   }  
 
   //braking
-  if(dips[3]&& !avoiding && distance[1] <= BREAKING_DIST)
+  if(dips[3]&& !avoiding && distance[1] <= BREAKING_DIST && !accelerating)
   {
     spdA = ((double)spdA * BREAKING_COF * (double)distance[1]);
     spdB = ((double)spdB * BREAKING_COF * (double)distance[1]);
@@ -213,36 +246,36 @@ void drive(int spdA, int spdB)
   spdA = constrain(spdA, -MAX_SPD, MAX_SPD);
   spdB = constrain(spdB, -MAX_SPD, MAX_SPD);
 
-  if(0)
+  if(dips[1])
   {
     if(spdA == spdB)
     {
-      Serial.print("<----( ");
+      Serial.print("<---( ");
       Serial.print(spdA);
-      Serial.println(" )---->");
+      Serial.println(" )--->");
     }
     else
     {
       if(spdA > spdB)
       {
-        Serial.print("---( ");
+        Serial.print("--( ");
         Serial.print(spdA);
         Serial.print(" )--( ");
         Serial.print(spdB);
-        Serial.println(" )-->");
+        Serial.println(" )->");
       }
       else
       {
-        Serial.print("<--( ");
+        Serial.print("<-( ");
         Serial.print(spdA);
         Serial.print(" )--( ");
         Serial.print(spdB);
-        Serial.println(" )---");
+        Serial.println(" )--");
       }
     }
   }
 
-  //actual driving
+  //actual driving crap
   if(spdA==0 && spdB==0)  
   {
     digitalWrite(AIN_1, HIGH);
@@ -278,11 +311,6 @@ void drive(int spdA, int spdB)
   }  
 }
 
-int emulate_front() // emulates front sensosr if it's not found
-{
-  return 666;
-}
-
 void avoid()
 {
   avoiding = true;
@@ -294,6 +322,7 @@ void avoid()
       sensors();
       if(dips[1])
         Serial.println("Avoiding");
+
       drive(-AVOID_SPD, -0.5*AVOID_SPD);
     }  
   }
@@ -304,6 +333,7 @@ void avoid()
       sensors();
       if(dips[1])
         Serial.println("Avoiding");
+
       drive(-0.5*AVOID_SPD, -AVOID_SPD);
     } 
   }
@@ -313,6 +343,24 @@ void avoid()
   accel = 0;
 }
 
+void gyroCorrecter(int olderG)
+{
+  avoiding = true;
+  while(olderG+5 >= gyro && olderG-5 <= gyro)
+  {
+    sensors();
+    int spdA = -GYRO_CORRECT_SPD;
+    int spdB = GYRO_CORRECT_SPD;
+    if(olderG < gyro)
+    {
+      int spdA = GYRO_CORRECT_SPD;
+      int spdB = -GYRO_CORRECT_SPD;
+    } 
+    drive(spdA, spdB);
+  }
+  avoiding = false;
+  milk_1 = millis();
+}
 
 //----------------------- Do not touch this fucking bs ------------------------------------------------
 //initialises I2C devices, pins, serial comunication and reads dip switches 
@@ -339,11 +387,9 @@ void init_all()
   // serial init 
   if(dips[1])
     Serial.begin(SERIAL_BAUD);
-
-
+    
   // i2c init
   Wire.begin();
-
 
   // vlx init
 
@@ -372,10 +418,13 @@ void init_all()
     vlx[0] = true;
   else
     vlx[0] = false;
-  VLX_1.startContinuous(); //starts continuous data reading
-  if(dips[1]) // prints adress if serial is enabled
-    Serial.println(VLX_1.getAddress());
-  
+  //VLX_1.startContinuous(); //starts continuous data reading
+
+  if(dips[1])// prints adress if serial is enabled
+    Serial.println(VLX_2.getAddress());
+
+
+
   //------------------------- vlx 2 ------------------------------
   digitalWrite(XSHUT2, HIGH);
   delay(10); 
@@ -396,9 +445,12 @@ void init_all()
     vlx[1] = true;
   else
     vlx[1] = false;
-  VLX_2.startContinuous();
+  //VLX_2.startContinuous();
+  
   if(dips[1])
     Serial.println(VLX_2.getAddress());
+
+
 
   //-------------------- vlx 3 ----------------------------
   digitalWrite(XSHUT3, HIGH);
@@ -420,12 +472,13 @@ void init_all()
     vlx[2] = true;
   else
     vlx[2] = false;
-  VLX_3.startContinuous();
+  //VLX_3.startContinuous();
   if(dips[1])
     Serial.println(VLX_3.getAddress());
 
-  if(dips[1])
-    Serial.println("init finishit");
+
+
+  Serial.println("init finishit");
 
   
 }

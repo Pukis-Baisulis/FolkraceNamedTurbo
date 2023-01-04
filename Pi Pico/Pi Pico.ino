@@ -3,27 +3,24 @@
 
 MPU9250 mpu;
 
+double gyroid[3];
+
+
 void setup()
 {
-  Serial.begin(115200);
-  Wire1.setSCL(5);
-  Wire1.setSDA(4);
-  Wire1.begin();
+  Wire.begin();
   if (!mpu.setup(0x68)) {  // change to your own address
       while (1) {
           Serial.println("MPU connection failed. Please check your connection with `connection_check` example.");
-          delay(500);
+          delay(1000);
       }
   }
-  Serial.println("Accel Gyro calibration will start in 5sec.");
-  Serial.println("Please leave the device still on the flat plane.");
+  Serial.println("Accel Gyro calibration will start in 3sec.");
   mpu.verbose(true);
-  delay(5000);
+  delay(3000);
   mpu.calibrateAccelGyro();
 
-  Serial.println("Mag calibration will start in 5sec.");
   Serial.println("Please Wave device in a figure eight until done.");
-  delay(5000);
   mpu.calibrateMag();
 
   print_calibration();
@@ -31,16 +28,17 @@ void setup()
 }
 
 void loop() {
-    if (mpu.update()) {
-        static uint32_t prev_ms = millis();
-        if (millis() > prev_ms + 25) {
-            print_roll_pitch_yaw();
-            prev_ms = millis();
-        }
+  if (mpu.update()) {
+    static uint32_t prev_ms = millis();
+    if (millis() > prev_ms + 25) {
+        gyroData();
+        prev_ms = millis();
     }
+    
+  }
 }
 
-void print_roll_pitch_yaw() {
+void gyroData() {
     Serial.print("Yaw, Pitch, Roll: ");
     Serial.print(mpu.getYaw(), 2);
     Serial.print(", ");
