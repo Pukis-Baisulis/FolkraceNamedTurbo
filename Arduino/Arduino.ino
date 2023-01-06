@@ -108,20 +108,24 @@ void setup()
   // put your setup code here, to run once
   milk_0 = millis();
   init_all();
+  Serial.println("gg");
+  Serial.println("gg");
+  Serial.println("gg");
+  Serial.println("gg");
   if(dips[5])// does the delay if dip 6 on
   {
     while(millis()-milk_0 <= START_DELAY)
     {
       digitalWrite(LED_BUILTIN, LOW);
+      Serial.println("gg");
     }    
   }
-  digitalWrite(LED_BUILTIN, HIGH);
+  //digitalWrite(LED_BUILTIN, HIGH);
 }
 
 void loop() 
 {
   sensors();
-  //digitalWrite(LED_BUILTIN, LOW);
   P = distance[2]-distance[0];
   //P = target - position;
   I += P;
@@ -132,7 +136,7 @@ void loop()
   {
     Serial.println(PID);
   }
-  //digitalWrite(LED_BUILTIN, HIGH);
+
 }
 
 void sensors()
@@ -141,7 +145,7 @@ void sensors()
 
   distance[0]=0;
   if(vlx[0])
-    distance[0]=VLX_1.readRangeSingleMillimeters();//vlx1 left    
+    distance[0]=888;//VLX_1.readRangeSingleMillimeters();//vlx1 left    
     
   if(distance[0] <=MIN_SENSOR_RANGE)
     distance[0]=1;    
@@ -151,7 +155,7 @@ void sensors()
         
   distance[2]=0;
   if(vlx[2])
-    distance[2]=VLX_3.readRangeSingleMillimeters();// vlx3 right
+    distance[2]=888;//VLX_3.readRangeSingleMillimeters();// vlx3 right
    
   if(distance[2] <=MIN_SENSOR_RANGE)
     distance[2]=1;    
@@ -161,7 +165,7 @@ void sensors()
 
 
   if(vlx[1])
-    distance[1]=VLX_2.readRangeSingleMillimeters();//vlx2 mid
+    distance[1]=888;//VLX_2.readRangeSingleMillimeters();//vlx2 mid
   else 
     distance[1]=emulate_front();
 
@@ -213,9 +217,6 @@ int emulate_front() // emulates front sensosr if it's not found
 
 void drive(int spdA, int spdB)
 {
-
-  
-
   //accel
   if(dips[2] && !avoiding)// uses milk_1
   {
@@ -374,12 +375,16 @@ void init_all()
   pinMode(XSHUT1, OUTPUT); 
   pinMode(XSHUT2, OUTPUT); 
   pinMode(XSHUT3, OUTPUT); 
+  
     //motors
   pinMode(AIN_1, OUTPUT); 
   pinMode(AIN_2, OUTPUT);
   pinMode(BIN_1, OUTPUT);
   pinMode(BIN_2, OUTPUT);
   pinMode(MOT_EN, OUTPUT);
+
+  pinMode(LED_BUILTIN, OUTPUT); 
+  digitalWrite(LED_BUILTIN, LOW);
 
   //enables or disables motors
   digitalWrite(MOT_EN, dips[0]);
@@ -479,8 +484,6 @@ void init_all()
 
 
   Serial.println("init finishit");
-
-  
 }
 
 void dipsaliai()//reads dip switches
